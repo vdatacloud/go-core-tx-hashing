@@ -1,0 +1,4 @@
+{
+  "private": true,
+  "description": "Only for CI: installs @canton-network/core-tx-hashing to cross-check the vectors (scripts/upstream-check.mjs)"
+}

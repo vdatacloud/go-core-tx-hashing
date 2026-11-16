@@ -1,0 +1,15 @@
+go-core-tx-hashing
+Copyright 2026 vDataCloud and the go-core-tx-hashing authors
+
+This product is a Go port of @canton-network/core-tx-hashing 1.2.0
+(https://github.com/canton-network/wallet/tree/main/core/tx-hashing),
+Copyright (c) 2025-2026 Digital Asset (Switzerland) GmbH and/or its
+affiliates, licensed under the Apache License, Version 2.0.
+
+testdata/upstream/ holds that package's test vectors, copied unchanged from
+the same repository (Apache License, Version 2.0).
+
+proto/ holds protobuf definitions from Canton v3.5.10
+(https://github.com/digital-asset/canton), Copyright (c) Digital Asset
+(Switzerland) GmbH and/or its affiliates, licensed under the Apache License,
+Version 2.0, with the changes described in each file's header.

@@ -1,0 +1,25 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go test -count=1 ./...
+      - name: release, naming the upstream version it ports
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(sed -n 's/.*UpstreamVersion = "\(.*\)".*/\1/p' version.go)
+          c=$(sed -n 's/.*CantonVersion = "\(.*\)".*/\1/p' version.go)
+          tag=${GITHUB_REF_NAME#v}
+          [ "${tag%.*}" = "${v%.*}" ] || { echo "tag doesn't carry upstream ${v%.*}"; exit 1; }
+          gh release create "$GITHUB_REF_NAME" --generate-notes \
+            --notes "Go port of @canton-network/core-tx-hashing $v (hashing schemes V2 and V3), protobuf definitions from Canton $c."

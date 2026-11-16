@@ -1,0 +1,179 @@
+// Copyright (c) Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Vendored from Canton v3.5.10 (Apache-2.0), community/ledger-api-proto/src/main/protobuf/com/daml/ledger/api/v2/interactive/interactive_submission_service.proto (HashingSchemeVersion, PreparedTransaction, Metadata, DamlTransaction),
+// trimmed to what a prepared transaction holds. Message and field numbers are
+// unchanged, so the wire format is Canton's; only the proto package differs,
+// so these types never clash with other Ledger API bindings in one program.
+// Regenerate with `go generate ./...` (see gen.go).
+
+syntax = "proto3";
+
+package txhashing.ledgerapi;
+
+option go_package = "github.com/vdatacloud/go-core-tx-hashing/ledgerapi";
+
+import "txhashing/ledgerapi/common_data.proto";
+import "txhashing/ledgerapi/node.proto";
+import "txhashing/ledgerapi/value.proto";
+
+// [docs-entry-start: HashingSchemeVersion]
+// The hashing scheme version used when building the hash of the PreparedTransaction
+enum HashingSchemeVersion {
+  HASHING_SCHEME_VERSION_UNSPECIFIED = 0;
+  reserved 1; // Hashing Scheme V1 - unsupported
+  HASHING_SCHEME_VERSION_V2 = 2;
+  HASHING_SCHEME_VERSION_V3 = 3;
+  // Development-protocol-only hashing scheme for LF development-version prepared transactions.
+  // V4 includes exercise external_call_results in the prepared transaction hash.
+  HASHING_SCHEME_VERSION_V4 = 4;
+}
+
+/**
+ * Prepared Transaction Message
+ */
+message PreparedTransaction {
+  // Daml Transaction representing the ledger effect if executed. See below
+  //
+  // Required
+  DamlTransaction transaction = 1;
+  // Metadata context necessary to execute the transaction
+  //
+  // Required
+  Metadata metadata = 2;
+}
+
+// Transaction Metadata
+// Refer to the hashing documentation for information on how it should be hashed.
+message Metadata {
+  message SubmitterInfo {
+    // Required: must be non-empty
+    repeated string act_as = 1;
+    // Required
+    string command_id = 2;
+  }
+
+  // This message is deprecated and may be removed in future releases
+  message GlobalKeyMappingEntry {
+    // Required
+    .txhashing.ledgerapi.GlobalKey key = 1 [deprecated = true];
+    // Optional
+    optional Value value = 2 [deprecated = true];
+  }
+
+  message InputContract {
+    // Required
+    oneof contract {
+      // When new versions will be added, they will show here
+      .txhashing.ledgerapi.Create v1 = 1;
+    }
+    // Required
+    uint64 created_at = 1000;
+    reserved 1001; // Used to contain driver_metadata, now contained in event_blob
+    // Required: must be non-empty
+    bytes event_blob = 1002;
+  }
+
+  /* ************************************************** */
+  /* ** Metadata information that needs to be signed ** */
+  /* ************************************************** */
+
+  // this used to contain the ledger effective time
+  reserved 1;
+
+  // Required
+  SubmitterInfo submitter_info = 2;
+  // Required
+  string synchronizer_id = 3;
+  // Required
+  uint32 mediator_group = 4;
+  // Required
+  string transaction_uuid = 5;
+  // Required
+  uint64 preparation_time = 6;
+  // Not populated if the transaction has no input contracts
+  //
+  // Optional: can be empty
+  repeated InputContract input_contracts = 7;
+
+  /*
+   * Where ledger time constraints are imposed during the execution of the contract they will be populated
+   * in the fields below. These are optional because if the transaction does NOT depend on time, these values
+   * do not need to be set.
+   * The final ledger effective time used will be chosen when the command is submitted through the [execute] RPC.
+   * If the ledger effective time is outside of any populated min/max bounds then a different transaction
+   * can result, that will cause a confirmation message rejection.
+   */
+  // Optional
+  optional uint64 min_ledger_effective_time = 9;
+  // Optional
+  optional uint64 max_ledger_effective_time = 10;
+
+  // Maximum timestamp at which the transaction can be recorded onto the ledger via the synchronizer `synchronizer_id`.
+  // If submitted after it will be rejected even if otherwise valid, in which case it needs to be prepared and signed again
+  // with a new valid max_record_time.
+  // Set max_record_time in the PreparedTransactionRequest to get this field set accordingly
+  //
+  // Optional
+  optional uint64 max_record_time = 11;
+
+  /* ********************************************************** */
+  /* ** Metadata information that does NOT need to be signed ** */
+  /* ********************************************************** */
+
+  // This fields is deprecated and will always be empty.
+  // Keys and associated contracts are already present and signed within the transaction nodes where they're used
+  //
+  // Optional: can be empty
+  repeated GlobalKeyMappingEntry global_key_mapping = 8 [deprecated = true];
+}
+
+/*
+ * Daml Transaction.
+ * This represents the effect on the ledger if this transaction is successfully committed.
+ */
+message DamlTransaction {
+  message NodeSeed {
+    // Required
+    int32 node_id = 1;
+    // Required: must be non-empty
+    bytes seed = 2;
+  }
+
+  // A transaction may contain nodes with different versions.
+  // Each node must be hashed using the hashing algorithm corresponding to its specific version.
+  // [docs-entry-start: DamlTransaction.Node]
+  message Node {
+    // Required
+    string node_id = 1;
+
+    // Versioned node
+    //
+    // Required
+    oneof versioned_node {
+      // Start at 1000 so we can add more fields before if necessary
+      // When new versions will be added, they will show here
+      //
+      // Required
+      .txhashing.ledgerapi.Node v1 = 1000;
+    }
+  }
+  // [docs-entry-end: DamlTransaction.Node]
+
+  // serialization version, will be >= max(nodes version)
+  //
+  // Required
+  string version = 1;
+  // Root nodes of the transaction
+  //
+  // Required: must be non-empty
+  repeated string roots = 2;
+  // List of nodes in the transaction
+  //
+  // Required: must be non-empty
+  repeated Node nodes = 3;
+  // Node seeds are values associated with certain nodes used for generating cryptographic salts
+  //
+  // Required: must be non-empty
+  repeated NodeSeed node_seeds = 4;
+}

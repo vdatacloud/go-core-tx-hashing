@@ -1,0 +1,41 @@
+// Copyright (c) Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Vendored from Canton v3.5.10 (Apache-2.0), community/ledger-api-proto/src/main/protobuf/com/daml/ledger/api/v2/interactive/interactive_submission_common_data.proto,
+// trimmed to what a prepared transaction holds. Message and field numbers are
+// unchanged, so the wire format is Canton's; only the proto package differs,
+// so these types never clash with other Ledger API bindings in one program.
+// Regenerate with `go generate ./...` (see gen.go).
+
+syntax = "proto3";
+
+package txhashing.ledgerapi;
+
+option go_package = "github.com/vdatacloud/go-core-tx-hashing/ledgerapi";
+
+import "txhashing/ledgerapi/value.proto";
+
+
+message GlobalKey {
+  // The identifier uses the package-id reference format.
+  //
+  // Required
+  Identifier template_id = 1;
+  // Required
+  string package_name = 2;
+  // Required
+  Value key = 3;
+  // Required: must be non-empty
+  bytes hash = 4;
+}
+
+message GlobalKeyWithMaintainers {
+  // The key
+  //
+  // Required
+  GlobalKey key = 1;
+  // Key maintainers
+  //
+  // Required: must be non-empty
+  repeated string maintainers = 2;
+}

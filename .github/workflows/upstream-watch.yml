@@ -1,0 +1,38 @@
+name: upstream-watch
+# Weekly: does this port still agree with upstream's newest vectors and
+# release? A vector it fails fails this job; a newer release warns.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: upstream's newest vectors
+        run: |
+          git clone -q --depth 1 --filter=blob:none --sparse https://github.com/canton-network/wallet.git "$RUNNER_TEMP/wallet"
+          git -C "$RUNNER_TEMP/wallet" sparse-checkout set core/tx-hashing/vectors
+          echo "upstream commit $(git -C "$RUNNER_TEMP/wallet" rev-parse HEAD)"
+          rm -rf testdata/upstream && cp -R "$RUNNER_TEMP/wallet/core/tx-hashing/vectors" testdata/upstream
+          go test -count=1 -run TestUpstreamVectors .
+      - name: upstream's newest release
+        run: |
+          ours=$(sed -n 's/.*UpstreamVersion = "\(.*\)".*/\1/p' version.go)
+          latest=$(npm view @canton-network/core-tx-hashing version)
+          echo "ours $ours, latest $latest"
+          npm install --no-save --ignore-scripts "@canton-network/core-tx-hashing@$latest"
+          node scripts/upstream-check.mjs "$RUNNER_TEMP/fields.json"
+          UPSTREAM_FIELDS="$RUNNER_TEMP/fields.json" go test -count=1 -run TestFieldsMatchUpstream .
+          if [ "$latest" != "$ours" ]; then
+            echo "::warning::@canton-network/core-tx-hashing $latest is newer than $ours: review its changes and port them (README, Releases)"
+          fi

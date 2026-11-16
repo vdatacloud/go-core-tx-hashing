@@ -1,0 +1,58 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - name: tests, with every upstream vector
+        run: go test -race -count=1 ./...
+      - name: fuzz (a signer reads transactions it didn't build)
+        run: go test -run '^$' -fuzz FuzzHash -fuzztime 60s .
+      - name: generated code matches proto/
+        run: |
+          go generate ./...
+          git diff --exit-code -- ledgerapi/
+
+  # The vectors agree with exactly the upstream version this port follows
+  # (version.go), and the vendored protobuf fields equal upstream's.
+  upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: install the upstream version this port follows
+        run: |
+          v=$(sed -n 's/.*UpstreamVersion = "\(.*\)".*/\1/p' version.go)
+          echo "upstream @canton-network/core-tx-hashing $v"
+          npm install --no-save --ignore-scripts "@canton-network/core-tx-hashing@$v"
+      - run: node scripts/upstream-check.mjs "$RUNNER_TEMP/fields.json"
+      - run: UPSTREAM_FIELDS="$RUNNER_TEMP/fields.json" go test -count=1 -run TestFieldsMatchUpstream -v .
+
+  # A release tag carries the upstream major.minor: v1.2.x ports 1.2.
+  tag:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          v=$(sed -n 's/.*UpstreamVersion = "\(.*\)".*/\1/p' version.go)
+          tag=${GITHUB_REF_NAME#v}
+          [ "${tag%.*}" = "${v%.*}" ] || { echo "tag $GITHUB_REF_NAME doesn't carry upstream ${v%.*} (version.go)"; exit 1; }
